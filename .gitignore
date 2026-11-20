@@ -1,0 +1,17 @@
+# Build output
+*.bit
+*.bin
+*.hex
+build/
+out/
+reports/
+
+# Vendor SDK and toolchain — referenced, never committed
+vendor/
+efinity/
+efx_run/
+*.lic
+
+# OS noise
+.DS_Store
+Thumbs.db

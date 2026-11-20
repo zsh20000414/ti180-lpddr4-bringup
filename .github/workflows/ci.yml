@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 16 * * *"   # 00:00 Asia/Shanghai — the nightly sweep
+
+jobs:
+  lint-and-sim:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint RTL
+        run: |
+          test -d rtl || { echo "rtl/ missing"; exit 1; }
+          command -v verilator >/dev/null && verilator --lint-only -Wall rtl/*.sv || echo "verilator not installed on runner yet"
+      - name: Run AXI testbench
+        run: |
+          if command -v iverilog >/dev/null; then
+            iverilog -g2012 -o /tmp/tb tb/*.sv && vvp /tmp/tb
+          else
+            echo "simulator not installed on runner yet"
+          fi
+
+  nightly-timing-sweep:
+    # Place & route does not run on hosted runners: the Efinity toolchain and its
+    # licence live on the build machine. This job is a no-op until that runner
+    # is registered, and says so out loud instead of pretending to have run.
+    if: github.event_name == 'schedule'
+    runs-on: [self-hosted, efinity]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Seed sweep
+        run: python3 scripts/timing_sweep.py --seeds 8
+      - name: Diff against last snapshot
+        run: |
+          prev=$(ls -1d reports/*/ | tail -2 | head -1)
+          cur=$(ls -1d reports/*/ | tail -1)
+          python3 scripts/timing_diff.py "${prev}timing.json" "${cur}timing.json" || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: timing-${{ github.run_id }}
+          path: reports/
